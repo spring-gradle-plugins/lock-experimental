@@ -1,25 +1,9 @@
-import java.util.zip.ZipFile
-
-/*
- * Copyright 2014-2015 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+//import java.util.zip.ZipFile
 
 plugins {
     id 'com.gradle.plugin-publish' version '0.9.7'
     id 'nebula.plugin-plugin' version '4.24.2'
-    id 'nebula.kotlin' version '1.0.5'
+    id 'nebula.kotlin' version '1.2.21'
     id 'java-gradle-plugin'
     id 'groovy'
 }
@@ -27,7 +11,7 @@ plugins {
 description 'Inline dependency locking for Gradle'
 
 contacts {
-    'joschneider@netflix.com' {
+    'jschneider@pivotal.io' {
         moniker 'Jon Schneider'
         github 'jkschneider'
     }
@@ -35,7 +19,7 @@ contacts {
 
 dependencies {
     compileOnly 'org.codehaus.groovy:groovy-all:2.4.7'
-    compile 'com.beust:klaxon:0.27'
+	compile 'org.jetbrains.kotlin:kotlin-reflect'
 }
 
 pluginBundle {
@@ -58,20 +42,20 @@ compileKotlin.dependsOn compileGroovy
 compileKotlin.classpath += files(compileGroovy.destinationDir)
 classes.dependsOn compileKotlin
 
-task validatePlugin(dependsOn: jar) {
-    doLast {
-        com.gradle.publish.PublishTask publishTask = tasks.find { it instanceof com.gradle.publish.PublishTask }
-        def jar = file('build/libs').listFiles().find {
-            it.name.endsWith('.jar') &&
-                    !it.name.endsWith('doc.jar') &&
-                    !it.name.endsWith('sources.jar')
-        }
-
-        def validate = com.gradle.publish.PublishTask.class.declaredMethods.find {
-            it.name == 'validatePluginDescriptor'
-        }
-        validate.accessible = true
-        validate.invoke(publishTask, new ZipFile(jar), 'nebula.lock')
-        logger.lifecycle('Validated plugin successfully')
-    }
-}
+//task validatePlugin(dependsOn: jar) {
+//    doLast {
+//        com.gradle.publish.PublishTask publishTask = tasks.find { it instanceof com.gradle.publish.PublishTask }
+//        def jar = file('build/libs').listFiles().find {
+//            it.name.endsWith('.jar') &&
+//                    !it.name.endsWith('doc.jar') &&
+//                    !it.name.endsWith('sources.jar')
+//        }
+//
+//        def validate = com.gradle.publish.PublishTask.class.declaredMethods.find {
+//            it.name == 'validatePluginDescriptor'
+//        }
+//        validate.accessible = true
+//        validate.invoke(publishTask, new ZipFile(jar), 'nebula.lock')
+//        logger.lifecycle('Validated plugin successfully')
+//    }
+//}

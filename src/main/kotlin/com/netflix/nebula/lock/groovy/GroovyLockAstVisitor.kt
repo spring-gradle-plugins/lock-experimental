@@ -20,7 +20,13 @@ package com.netflix.nebula.lock.groovy
 import com.netflix.nebula.lock.ConfigurationModuleIdentifier
 import com.netflix.nebula.lock.withConf
 import org.codehaus.groovy.ast.ClassCodeVisitorSupport
-import org.codehaus.groovy.ast.expr.*
+import org.codehaus.groovy.ast.expr.ArgumentListExpression
+import org.codehaus.groovy.ast.expr.ConstantExpression
+import org.codehaus.groovy.ast.expr.Expression
+import org.codehaus.groovy.ast.expr.GStringExpression
+import org.codehaus.groovy.ast.expr.MapExpression
+import org.codehaus.groovy.ast.expr.MethodCallExpression
+import org.codehaus.groovy.ast.expr.TupleExpression
 import org.codehaus.groovy.control.SourceUnit
 import org.gradle.api.Project
 import org.gradle.api.internal.artifacts.DefaultModuleIdentifier
@@ -28,140 +34,142 @@ import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.DefaultV
 import java.util.*
 
 class GroovyLockAstVisitor(val project: Project,
-                           val overrides: Map<ConfigurationModuleIdentifier, String>,
-                           val variableDefinitions: Map<String, String>): ClassCodeVisitorSupport() {
-    val updates = ArrayList<GroovyLockUpdate>()
-    private val mvidPattern = "([^:]*):([^:]+):?([^@:]*).*".toRegex()
-    private var inDependencies = false
-    private var inResolutionStrategies = false
+						   val overrides: Map<ConfigurationModuleIdentifier, String>,
+						   val variableDefinitions: Map<String, String>) : ClassCodeVisitorSupport() {
+	val updates = ArrayList<GroovyLockUpdate>()
+	private val mvidPattern = "([^:]*):([^:]+):?([^@:]*).*".toRegex()
+	private var inDependencies = false
+	private var inResolutionStrategies = false
 
-    override fun getSourceUnit(): SourceUnit? = null
-    val path = Stack<String>()
+	override fun getSourceUnit(): SourceUnit? = null
+	val path = Stack<String>()
 
-    override fun visitMethodCallExpression(call: MethodCallExpression) {
-        val caller = call.objectExpression.text
-        if(caller != "this") path.push(caller)
-        path.push(call.methodAsString)
+	override fun visitMethodCallExpression(call: MethodCallExpression) {
+		val caller = call.objectExpression.text
+		if (caller != "this") path.push(caller)
+		path.push(call.methodAsString)
 
-        if(inDependencies) {
-            visitMethodCallInDependencies(call)
-        } else if (path.any { it == "dependencies" }) {
-            inDependencies = true
-            super.visitMethodCallExpression(call)
-            inDependencies = false
-        }
+		if (inDependencies) {
+			visitMethodCallInDependencies(call)
+		} else if (path.any { it == "dependencies" }) {
+			inDependencies = true
+			super.visitMethodCallExpression(call)
+			inDependencies = false
+		}
 
-        if (inResolutionStrategies) {
-            visitMethodCallInResolutionStrategies(call)
-        } else if (path.any { it == "resolutionStrategy" }) {
-            inResolutionStrategies = true
-            super.visitMethodCallExpression(call)
-            inResolutionStrategies = false
-        } else super.visitMethodCallExpression(call)
+		if (inResolutionStrategies) {
+			visitMethodCallInResolutionStrategies(call)
+		} else if (path.any { it == "resolutionStrategy" }) {
+			inResolutionStrategies = true
+			super.visitMethodCallExpression(call)
+			inResolutionStrategies = false
+		} else super.visitMethodCallExpression(call)
 
-        path.pop()
-    }
+		path.pop()
+	}
 
-    fun visitMethodCallInResolutionStrategies(call: MethodCallExpression) {
-        if(path.any { it == "ignore" }) return
-        val conf = path.takeLastWhile { it != "configurations" }.first()
-        val args = call.parseArgs()
-        if(isConf(conf) || conf == "all") {
-            val lock = args.first().lock(conf, args)
-            updates.add(GroovyLockUpdate(call, lock))
-        }
-    }
+	fun visitMethodCallInResolutionStrategies(call: MethodCallExpression) {
+		if (path.any { it == "ignore" }) return
+		val conf = path.takeLastWhile { it != "configurations" }.first()
+		val args = call.parseArgs()
+		if (isConf(conf) || conf == "all") {
+			val lock = args.first().lock(conf, args)
+			updates.add(GroovyLockUpdate(call, lock))
+		}
+	}
 
-    fun visitMethodCallInDependencies(call: MethodCallExpression) {
-        if(path.any { it == "ignore" }) return
-        // https://docs.gradle.org/current/javadoc/org/gradle/api/artifacts/dsl/DependencyHandler.html
-        val conf = call.methodAsString
-        val args = call.parseArgs()
-        if(isConf(conf)) {
-            val lock = args.first().lock(conf, args)
-            updates.add(GroovyLockUpdate(call, lock))
-        }
-    }
+	fun visitMethodCallInDependencies(call: MethodCallExpression) {
+		if (path.any { it == "ignore" }) return
+		// https://docs.gradle.org/current/javadoc/org/gradle/api/artifacts/dsl/DependencyHandler.html
+		val conf = call.methodAsString
+		val args = call.parseArgs()
+		if (isConf(conf)) {
+			val lock = args.first().lock(conf, args)
+			updates.add(GroovyLockUpdate(call, lock))
+		}
+	}
 
-    private fun isConf(methodName: String) =
-            project.configurations.findByName(methodName) != null ||
-                    project.subprojects.any { sub -> sub.configurations.findByName(methodName) != null }
+	private fun isConf(methodName: String) =
+			project.configurations.findByName(methodName) != null ||
+					project.subprojects.any { sub -> sub.configurations.findByName(methodName) != null }
 
-    private fun collectEntryExpressions(args: List<Expression>) =
-            args.filterIsInstance(MapExpression::class.java)
-                    .map { it.mapEntryExpressions }
-                    .flatten()
-                    .map { it.keyExpression.text to it.valueExpression.text }
-                    .toMap()
+	private fun collectEntryExpressions(args: List<Expression>) =
+			args.filterIsInstance(MapExpression::class.java)
+					.map { it.mapEntryExpressions }
+					.flatten()
+					.map { it.keyExpression.text to it.valueExpression.text }
+					.toMap()
 
-    private fun String.lockedVersion(group: String?, name: String): String? {
-        val mid = DefaultModuleIdentifier(group, name)
+	private fun String.lockedVersion(group: String?, name: String): String? {
+		val mid = DefaultModuleIdentifier(group, name)
 
-        fun overrideOrResolvedVersion(p: Project): String? {
-            val configurations = if(this == "all") p.configurations else setOf(p.configurations.getByName(this))
-            val versions = configurations.map { conf ->
-                overrides[mid.withConf(conf)] ?:
-                        conf.resolvedConfiguration.firstLevelModuleDependencies.find {
-                            it.module.id.module.equals(mid)
-                        }?.moduleVersion
-            }.filterNotNull()
-            return versions.maxWith(DefaultVersionComparator().asStringComparator())
-        }
+		fun overrideOrResolvedVersion(p: Project): String? {
+			val configurations = if (this == "all") p.configurations else setOf(p.configurations.getByName(this))
+			val versions = configurations
+					.filter { it.isCanBeResolved }
+					.mapNotNull { conf ->
+						overrides[mid.withConf(conf)] ?: conf
+								.resolvedConfiguration
+								.firstLevelModuleDependencies
+								.find { it.module.id.module == mid }
+								?.moduleVersion
+					}
+			return versions.maxWith(DefaultVersionComparator().asStringComparator())
+		}
 
-        return if(project.rootProject == project) {
-            if(project.subprojects.isEmpty()) {
-                // single module project
-                overrideOrResolvedVersion(project)
-            }
-            else {
-                // root project of a multi-module project
-                project.subprojects.map(::overrideOrResolvedVersion).maxWith(DefaultVersionComparator().asStringComparator())
-            }
-        } else {
-            // subproject of a multi-module project
-            overrideOrResolvedVersion(project)
-        }
-    }
+		return if (project.rootProject == project) {
+			if (project.subprojects.isEmpty()) {
+				// single module project
+				overrideOrResolvedVersion(project)
+			} else {
+				// root project of a multi-module project
+				project.subprojects.map(::overrideOrResolvedVersion).maxWith(DefaultVersionComparator().asStringComparator())
+			}
+		} else {
+			// subproject of a multi-module project
+			overrideOrResolvedVersion(project)
+		}
+	}
 
-    private fun Expression.lock(conf: String, args: List<Expression>): String? {
-        return when (this) {
-            is MapExpression -> {
-                val entries = collectEntryExpressions(args)
-                conf.lockedVersion(entries["group"], entries["name"]!!).let { locked ->
-                    if (locked == entries["version"]) null else locked
-                }
-            }
-            is ConstantExpression -> {
-                mvidPattern.matchEntire(value as String)?.run {
-                    val group = groupValues[1].let { if (it.isEmpty()) null else it }
-                    val name = groupValues[2]
-                    val version = groupValues[3].let { if (it.isEmpty()) null else it }
-                    conf.lockedVersion(group, name).let { locked -> if (locked == version) null else locked }
-                }
-            }
-            is GStringExpression -> {
-                mvidPattern.matchEntire(text)?.run {
-                    val group = groupValues[1].let { if (it.isEmpty()) null else it }
-                    val name = groupValues[2]
-                    val version = groupValues[3].let {
-                        when {
-                            it.isEmpty() -> null
-                            it.startsWith("$") -> variableDefinitions[it.drop(1)]
-                            else -> it
-                        }
-                    }
-                    conf.lockedVersion(group, name).let { locked -> if (locked == version) null else locked }
-                }
-            }
-            else -> null
-        }
-    }
+	private fun Expression.lock(conf: String, args: List<Expression>): String? {
+		return when (this) {
+			is MapExpression -> {
+				val entries = collectEntryExpressions(args)
+				conf.lockedVersion(entries["group"], entries["name"]!!).let { locked ->
+					if (locked == entries["version"]) null else locked
+				}
+			}
+			is ConstantExpression -> {
+				mvidPattern.matchEntire(value as String)?.run {
+					val group = groupValues[1].let { if (it.isEmpty()) null else it }
+					val name = groupValues[2]
+					val version = groupValues[3].let { if (it.isEmpty()) null else it }
+					conf.lockedVersion(group, name).let { locked -> if (locked == version) null else locked }
+				}
+			}
+			is GStringExpression -> {
+				mvidPattern.matchEntire(text)?.run {
+					val group = groupValues[1].let { if (it.isEmpty()) null else it }
+					val name = groupValues[2]
+					val version = groupValues[3].let {
+						when {
+							it.isEmpty() -> null
+							it.startsWith("$") -> variableDefinitions[it.drop(1)]
+							else -> it
+						}
+					}
+					conf.lockedVersion(group, name).let { locked -> if (locked == version) null else locked }
+				}
+			}
+			else -> null
+		}
+	}
 
-    private fun MethodCallExpression.parseArgs(): List<Expression> {
-        return when(arguments) {
-            is ArgumentListExpression -> (arguments as ArgumentListExpression).expressions
-            is TupleExpression -> (arguments as TupleExpression).expressions
-            else -> emptyList()
-        }
-    }
+	private fun MethodCallExpression.parseArgs(): List<Expression> {
+		return when (arguments) {
+			is ArgumentListExpression -> (arguments as ArgumentListExpression).expressions
+			is TupleExpression -> (arguments as TupleExpression).expressions
+			else -> emptyList()
+		}
+	}
 }

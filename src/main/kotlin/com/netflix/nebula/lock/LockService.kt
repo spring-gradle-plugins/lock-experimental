@@ -22,11 +22,11 @@ import org.codehaus.groovy.ast.builder.AstBuilder
 import org.codehaus.groovy.ast.stmt.BlockStatement
 import org.gradle.api.Project
 
-class LockService(val project: Project, val locksInEffect: List<Locked>) {
-    val groovyLockWriter = GroovyLockWriter()
-    val groovyLockPreparationWriter = GroovyLockPreparationWriter()
+class LockService(private val project: Project, private val locksInEffect: List<Locked>) {
+    private val groovyLockWriter = GroovyLockWriter()
+    private val groovyLockPreparationWriter = GroovyLockPreparationWriter()
 
-    fun undoLocks() {
+    private fun undoLocks() {
         locksInEffect.forEach { lock ->
             project.configurations.find { it.dependencies.any { it == lock.locked } }?.apply {
                 dependencies.remove(lock.locked)
@@ -59,7 +59,7 @@ class LockService(val project: Project, val locksInEffect: List<Locked>) {
         }
     }
 
-    fun updateLockGroovy(p: Project, overrides: Map<ConfigurationModuleIdentifier, String>) {
+    private fun updateLockGroovy(p: Project, overrides: Map<ConfigurationModuleIdentifier, String>) {
         val ast = AstBuilder().buildFromString(p.buildFile.readText())
         val stmt = ast.find { it is BlockStatement }
         if(stmt is BlockStatement) {
@@ -71,7 +71,7 @@ class LockService(val project: Project, val locksInEffect: List<Locked>) {
         }
     }
 
-    fun updateLockKotlin(p: Project, overrides: Map<ConfigurationModuleIdentifier, String>) {
+    private fun updateLockKotlin(p: Project, overrides: Map<ConfigurationModuleIdentifier, String>) {
         // TODO implement me
     }
 

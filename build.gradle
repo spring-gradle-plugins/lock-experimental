@@ -18,7 +18,7 @@ contacts {
 }
 
 dependencies {
-    compileOnly 'org.codehaus.groovy:groovy-all:2.4.7'
+    compileOnly 'org.codehaus.groovy:groovy-all:2.4.12'
 	compile 'org.jetbrains.kotlin:kotlin-reflect'
 }
 
@@ -37,7 +37,7 @@ pluginBundle {
     description = 'Plugin to lock dynamic dependencies and forces'
 }
 
-compileGroovy.dependsOn = compileGroovy.taskDependencies.values - 'compileJava'
+compileGroovy.dependsOn.remove('compileJava')
 compileKotlin.dependsOn compileGroovy
 compileKotlin.classpath += files(compileGroovy.destinationDir)
 classes.dependsOn compileKotlin

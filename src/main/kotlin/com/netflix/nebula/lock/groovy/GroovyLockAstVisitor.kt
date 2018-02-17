@@ -31,6 +31,8 @@ import org.codehaus.groovy.control.SourceUnit
 import org.gradle.api.Project
 import org.gradle.api.internal.artifacts.DefaultModuleIdentifier
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.DefaultVersionComparator
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.Version
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.VersionParser
 import java.util.*
 
 class GroovyLockAstVisitor(val project: Project,
@@ -101,9 +103,11 @@ class GroovyLockAstVisitor(val project: Project,
 					.toMap()
 
 	private fun String.lockedVersion(group: String?, name: String): String? {
-		val mid = DefaultModuleIdentifier(group, name)
+		val mid = DefaultModuleIdentifier.newId(group, name)
+		val versionComparator = DefaultVersionComparator().asVersionComparator()
+		val versionParser = VersionParser()
 
-		fun overrideOrResolvedVersion(p: Project): String? {
+		fun overrideOrResolvedVersion(p: Project): Version? {
 			val configurations = if (this == "all") p.configurations else setOf(p.configurations.getByName(this))
 			val versions = configurations
 					.filter { it.isCanBeResolved }
@@ -114,21 +118,28 @@ class GroovyLockAstVisitor(val project: Project,
 								.find { it.module.id.module == mid }
 								?.moduleVersion
 					}
-			return versions.maxWith(DefaultVersionComparator().asStringComparator())
+
+			return versions
+					.map { v -> versionParser.transform(v) }
+					.maxWith(versionComparator)
 		}
 
-		return if (project.rootProject == project) {
+		val lockedVersion: Version? = if (project.rootProject == project) {
 			if (project.subprojects.isEmpty()) {
 				// single module project
 				overrideOrResolvedVersion(project)
 			} else {
 				// root project of a multi-module project
-				project.subprojects.map(::overrideOrResolvedVersion).maxWith(DefaultVersionComparator().asStringComparator())
+				project.subprojects
+						.map(::overrideOrResolvedVersion)
+						.maxWith(versionComparator)
 			}
 		} else {
 			// subproject of a multi-module project
 			overrideOrResolvedVersion(project)
 		}
+
+		return lockedVersion?.source
 	}
 
 	private fun Expression.lock(conf: String, args: List<Expression>): String? {

@@ -1,7 +1,7 @@
 buildscript {
     repositories { mavenLocal() }
     dependencies {
-        classpath 'com.netflix.nebula:nebula-lock:latest.release'
+        classpath 'io.spring.gradle:dependency-lock:latest.release'
     }
 
     configurations.classpath.resolutionStrategy.cacheDynamicVersionsFor 0, 'minutes'
@@ -11,7 +11,7 @@ plugins {
   id 'java'
 }
 
-apply plugin: 'nebula.lock'
+apply plugin: 'spring.lock'
 
 repositories {
   mavenCentral()

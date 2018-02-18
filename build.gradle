@@ -1,12 +1,24 @@
-//import java.util.zip.ZipFile
+buildscript {
+	repositories {
+		mavenCentral()
+	}
+
+	dependencies {
+		classpath 'gradle.plugin.nl.javadude.gradle.plugins:license-gradle-plugin:0.13.1'
+	}
+}
 
 plugins {
-    id 'com.gradle.plugin-publish' version '0.9.7'
-    id 'nebula.plugin-plugin' version '4.24.2'
+	id 'java-gradle-plugin'
+	id 'com.gradle.plugin-publish' version '0.9.10'
+	id 'nebula.plugin-plugin' version '6.3.0'
     id 'nebula.kotlin' version '1.2.21'
-    id 'java-gradle-plugin'
     id 'groovy'
 }
+
+apply plugin: 'com.github.hierynomus.license'
+
+group = 'io.spring.gradle'
 
 description 'Inline dependency locking for Gradle'
 
@@ -25,37 +37,51 @@ dependencies {
 pluginBundle {
     plugins {
         kotlin {
-            id = 'nebula.lock'
-            displayName = 'Nebula Dependency Lock'
+            id = 'spring.lock'
+            displayName = 'Spring Dependency Lock'
             description = project.description
-            tags = ['nebula', 'dependency', 'lock']
+            tags = ['spring', 'dependency', 'lock']
         }
     }
 
-    website = 'https://github.com/nebula-plugins/lock-experimental'
-    vcsUrl = 'https://github.com/nebula-plugins/lock-experimental.git'
+    website = 'https://github.com/spring-gradle-plugins/dependency-lock'
+    vcsUrl = 'https://github.com/spring-gradle-plugins/dependency-lock.git'
     description = 'Plugin to lock dynamic dependencies and forces'
+
+	mavenCoordinates {
+		groupId = 'io.spring.gradle'
+		artifactId = 'dependency-lock'
+	}
+}
+
+bintray.pkg {
+	repo = 'jars'
+	userOrg = 'spring'
+	websiteUrl = 'https://github.com/spring-gradle-plugins/dependency-lock'
+	vcsUrl = 'https://github.com/spring-gradle-plugins/dependency-lock.git'
+	issueTrackerUrl = 'https://github.com/spring-gradle-plugins/dependency-lock/issues'
+	labels = ['gradle', 'spring', 'dependency', 'lock']
+}
+
+license {
+	header = file('gradle/licenseHeader.txt')
+	exclude '**/*.tokens'
+	mapping {
+		kt = 'JAVADOC_STYLE'
+	}
+	sourceSets = project.sourceSets
+	strictCheck = true
+}
+
+bintray.pkg {
+	version {
+		gpg {
+			sign = false
+		}
+	}
 }
 
 compileGroovy.dependsOn.remove('compileJava')
 compileKotlin.dependsOn compileGroovy
 compileKotlin.classpath += files(compileGroovy.destinationDir)
 classes.dependsOn compileKotlin
-
-//task validatePlugin(dependsOn: jar) {
-//    doLast {
-//        com.gradle.publish.PublishTask publishTask = tasks.find { it instanceof com.gradle.publish.PublishTask }
-//        def jar = file('build/libs').listFiles().find {
-//            it.name.endsWith('.jar') &&
-//                    !it.name.endsWith('doc.jar') &&
-//                    !it.name.endsWith('sources.jar')
-//        }
-//
-//        def validate = com.gradle.publish.PublishTask.class.declaredMethods.find {
-//            it.name == 'validatePluginDescriptor'
-//        }
-//        validate.accessible = true
-//        validate.invoke(publishTask, new ZipFile(jar), 'nebula.lock')
-//        logger.lifecycle('Validated plugin successfully')
-//    }
-//}

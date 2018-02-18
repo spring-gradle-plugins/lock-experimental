@@ -17,8 +17,7 @@ package io.spring.gradle.lock.groovy
 
 import org.gradle.api.Project
 
-class GroovyLockPreparationWriter {
-
+object GroovyLockPreparationWriter {
     fun prepareDependencies(project: Project, updates: Map<IntRange, List<ConfigurationDependency>>) {
         val updated = StringBuilder()
         val lines = project.buildFile.readLines()

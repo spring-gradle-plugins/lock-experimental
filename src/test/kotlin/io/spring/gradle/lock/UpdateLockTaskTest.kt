@@ -68,7 +68,7 @@ class UpdateLockTaskTest : TestKitTest() {
             }
         """.trim('\n').trimIndent())
 
-        runTasksSuccessfully("updateLocks")
+        runTasksSuccessfully("uL")
 
 		println(buildFile.readText())
 

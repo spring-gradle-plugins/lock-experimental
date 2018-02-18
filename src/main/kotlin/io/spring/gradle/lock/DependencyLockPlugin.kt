@@ -30,6 +30,6 @@ class DependencyLockPlugin : Plugin<Project> {
         project.tasks.create("updateLocks", UpdateLockTask::class.java).dependsOn(prepareForLocks)
         project.tasks.create("stripLocks", StripLocksTask::class.java)
         project.extensions.create("dependencyLock", DependencyLockExtension::class.java)
-        GroovyLockExtensions.enhanceDependencySyntax(project, LockService.forProject(project).locksInEffect)
+        GroovyLockExtensions.enhanceDependencySyntax(project)
     }
 }

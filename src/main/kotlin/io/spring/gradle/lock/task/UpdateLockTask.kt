@@ -15,11 +15,45 @@
  */
 package io.spring.gradle.lock.task
 
-import io.spring.gradle.lock.LockService
+import io.spring.gradle.lock.ConfigurationModuleIdentifier
+import io.spring.gradle.lock.groovy.GroovyLockAstVisitor
+import io.spring.gradle.lock.groovy.GroovyLockWriter
+import io.spring.gradle.lock.groovy.GroovyVariableExtractionVisitor
+import org.codehaus.groovy.ast.builder.AstBuilder
+import org.codehaus.groovy.ast.stmt.BlockStatement
 import org.gradle.api.DefaultTask
+import org.gradle.api.Project
 import org.gradle.api.tasks.TaskAction
 
-open class UpdateLockTask: DefaultTask() {
-    @TaskAction
-    fun updateLock() = LockService.forProject(project).updateLocks()
+open class UpdateLockTask : DefaultTask() {
+	@TaskAction
+	fun updateLock() = project.updateLocks()
+
+	private fun Project.updateLocks(overrides: Map<ConfigurationModuleIdentifier, String> = emptyMap()) {
+		configurations.all {
+			it.resolutionStrategy.apply {
+				cacheDynamicVersionsFor(0, "seconds")
+				cacheChangingModulesFor(0, "seconds")
+			}
+		}
+		arrayOf(this, rootProject).toSet().forEach { p ->
+			when {
+				p.buildFile.name.endsWith("gradle") -> updateLockGroovy(p, overrides)
+				else -> { /* do nothing */
+				}
+			}
+		}
+	}
+
+	private fun updateLockGroovy(p: Project, overrides: Map<ConfigurationModuleIdentifier, String>) {
+		val ast = AstBuilder().buildFromString(p.buildFile.readText())
+		val stmt = ast.find { it is BlockStatement }
+		if (stmt is BlockStatement) {
+			val variableExtractionVisitor = GroovyVariableExtractionVisitor()
+			variableExtractionVisitor.visitBlockStatement(stmt)
+			val visitor = GroovyLockAstVisitor(p, overrides, variableExtractionVisitor.variables)
+			visitor.visitBlockStatement(stmt)
+			GroovyLockWriter.updateLocks(p, visitor.updates)
+		}
+	}
 }

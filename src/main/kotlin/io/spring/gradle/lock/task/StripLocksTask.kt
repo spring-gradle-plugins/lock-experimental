@@ -15,11 +15,13 @@
  */
 package io.spring.gradle.lock.task
 
-import io.spring.gradle.lock.LockService
+import io.spring.gradle.lock.groovy.GroovyLockWriter
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
 
-open class StripLocksTask: DefaultTask() {
-    @TaskAction
-    fun stripLocks() = LockService.forProject(project).stripLocks()
+open class StripLocksTask : DefaultTask() {
+	@TaskAction
+	fun stripLocks() = arrayOf(project, project.rootProject).toSet().forEach { p ->
+		GroovyLockWriter.stripLocks(p)
+	}
 }

@@ -15,7 +15,6 @@
  */
 package io.spring.gradle.lock.groovy
 
-import io.spring.gradle.lock.Locked
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ExternalModuleDependency
@@ -28,13 +27,24 @@ class GroovyLockExtensions {
 	 * This is only really a problem during test execution, but the solution doesn't harm normal operation.
 	 */
 	static Project cachedProject
-	static volatile List<Locked> cachedLocksInEffect
 
-	static void enhanceDependencySyntax(Project project, List<Locked> locksInEffect) {
+	static void enhanceDependencySyntax(Project project) {
 		cachedProject = project
-		cachedLocksInEffect = locksInEffect
+
+		def updatingLocks = project.gradle.startParameter.taskNames.any { task ->
+			if(task == 'updateLocks')
+				true
+			else {
+				def taskNameParts = task.split('(?<!^)(?=[A-Z])')
+				taskNameParts.size() == 2 && 'update'.startsWith(taskNameParts[0]) &&
+						'Locks'.startsWith(taskNameParts[1])
+ 			}
+		}
 
 		Dependency.metaClass.lock = { lockedVersion ->
+			if(updatingLocks)
+				return this
+
 			if (delegate instanceof ExternalModuleDependency && !cachedProject.hasProperty('dependencyLock.ignore')) {
 				ExternalModuleDependency dep = delegate
 
@@ -55,8 +65,6 @@ class GroovyLockExtensions {
 				locked.setForce(dep.force)
 
 				containingConf.dependencies.add(locked)
-
-				cachedLocksInEffect.add(new Locked(locked, dep))
 			}
 
 			return this
@@ -77,8 +85,6 @@ class GroovyLockExtensions {
 				locked.setForce(dep.force)
 
 				containingConf.dependencies.add(locked)
-
-				cachedLocksInEffect.add(new Locked(locked, dep))
 			}
 
 			return this

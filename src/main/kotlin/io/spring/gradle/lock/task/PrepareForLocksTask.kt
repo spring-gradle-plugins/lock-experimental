@@ -15,11 +15,22 @@
  */
 package io.spring.gradle.lock.task
 
-import io.spring.gradle.lock.LockService
+import io.spring.gradle.lock.groovy.GroovyLockPreparationWriter
+import io.spring.gradle.lock.groovy.GroovyPrepareForLocksAstVisitor
+import org.codehaus.groovy.ast.builder.AstBuilder
+import org.codehaus.groovy.ast.stmt.BlockStatement
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
 
 open class PrepareForLocksTask: DefaultTask() {
     @TaskAction
-    fun updateLock() = LockService.forProject(project).prepareForLocks()
+    fun updateLock() = arrayOf(project, project.rootProject).toSet().forEach { p ->
+		val ast = AstBuilder().buildFromString(p.buildFile.readText())
+		val stmt = ast.find { it is BlockStatement }
+		if (stmt is BlockStatement) {
+			val visitor = GroovyPrepareForLocksAstVisitor(p)
+			visitor.visitBlockStatement(stmt)
+			GroovyLockPreparationWriter.prepareDependencies(p, visitor.updates)
+		}
+	}
 }

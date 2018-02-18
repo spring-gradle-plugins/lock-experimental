@@ -20,8 +20,12 @@ import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.ResolutionStrategy
 import org.gradle.api.internal.artifacts.dependencies.DefaultExternalModuleDependency
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 class GroovyLockExtensions {
+	static Logger logger = LoggerFactory.getLogger(GroovyLockExtensions)
+
 	/**
 	 * Because somehow project is sticky inside the lock closure, even if we remove the metaClass on Dependency.
 	 * This is only really a problem during test execution, but the solution doesn't harm normal operation.
@@ -55,6 +59,11 @@ class GroovyLockExtensions {
 
 				def containingConf = configurations.find {
 					it.dependencies.any { it.is(dep) }
+				}
+
+				if(!containingConf) {
+					logger.warn("Unable to lock ${dep.group}:${dep.name}:${dep.version} because no configuration could be found containing it")
+					return this
 				}
 
 				containingConf.dependencies.remove(dep)

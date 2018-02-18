@@ -152,16 +152,15 @@ class LockTest: TestKitTest() {
 	fun lockingDependencyInCustomConfiguration() {
 		buildFile.appendText("""
 			configurations {
-				optional
-				compile.extendsFrom(optional)
+				myconfig
 			}
 
             dependencies {
-                optional 'com.google.guava:guava:latest.release' lock 16.0
+                myconfig 'com.google.guava:guava:latest.release' lock '16.0'
             }
 
 			task listOptionalDependencies << {
-                [configurations.optional].each { conf ->
+                [configurations.myconfig].each { conf ->
                     conf.resolvedConfiguration.firstLevelModuleDependencies.each {
                         println "${'$'}conf.name: ${'$'}it.module.id"
                     }
@@ -170,7 +169,7 @@ class LockTest: TestKitTest() {
         """)
 
 		val result = runTasksSuccessfully("listOptionalDependencies")
-		result.assertDependency("com.google.guava:guava:16.0", "optional")
+		result.assertDependency("com.google.guava:guava:16.0", "myconfig")
 	}
 
     private fun BuildResult.assertDependency(mvid: String, conf: String) {

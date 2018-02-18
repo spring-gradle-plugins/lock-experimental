@@ -29,6 +29,7 @@ class LockTest: TestKitTest() {
             plugins {
                 id 'java'
                 id 'spring.lock'
+				id 'nebula.optional-base' version '3.3.0'
             }
 
             repositories {
@@ -85,7 +86,19 @@ class LockTest: TestKitTest() {
         result.assertDependency("com.google.guava:guava:16.0", "compile")
     }
 
-    @Test
+	@Test
+	fun lockingOptionalDependency() {
+		buildFile.appendText("""
+            dependencies {
+                compile 'com.google.guava:guava:latest.release', optional lock '16.0'
+            }
+        """)
+
+		val result = runTasksSuccessfully("listDependencies")
+		result.assertDependency("com.google.guava:guava:16.0", "compile")
+	}
+
+	@Test
     fun lockingStringNotationWithClosure() {
         buildFile.appendText("""
             dependencies {
@@ -135,7 +148,33 @@ class LockTest: TestKitTest() {
         result.assertDependency("com.google.guava:guava:18.0", "compile")
     }
 
+	@Test
+	fun lockingDependencyInCustomConfiguration() {
+		buildFile.appendText("""
+			configurations {
+				optional
+				compile.extendsFrom(optional)
+			}
+
+            dependencies {
+                optional 'com.google.guava:guava:latest.release' lock 16.0
+            }
+
+			task listOptionalDependencies << {
+                [configurations.optional].each { conf ->
+                    conf.resolvedConfiguration.firstLevelModuleDependencies.each {
+                        println "${'$'}conf.name: ${'$'}it.module.id"
+                    }
+                }
+            }
+        """)
+
+		val result = runTasksSuccessfully("listOptionalDependencies")
+		result.assertDependency("com.google.guava:guava:16.0", "optional")
+	}
+
     private fun BuildResult.assertDependency(mvid: String, conf: String) {
+		println(output)
         assertTrue(output.contains("$conf: $mvid"))
     }
 }

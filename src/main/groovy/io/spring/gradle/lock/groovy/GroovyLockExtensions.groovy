@@ -28,7 +28,7 @@ class GroovyLockExtensions {
 	 * This is only really a problem during test execution, but the solution doesn't harm normal operation.
 	 */
 	static Project cachedProject
-	static List<Locked> cachedLocksInEffect
+	static volatile List<Locked> cachedLocksInEffect
 
 	static void enhanceDependencySyntax(Project project, List<Locked> locksInEffect) {
 		cachedProject = project
@@ -38,9 +38,15 @@ class GroovyLockExtensions {
 			if (delegate instanceof ExternalModuleDependency && !cachedProject.hasProperty('dependencyLock.ignore')) {
 				ExternalModuleDependency dep = delegate
 
-				def containingConf = cachedProject.configurations.find {
+				// This metaClass definition of lock is going to contain a reference to SOME
+				// project in the set of all projects (whichever one is configured last). So we'll
+				// have to search through all projects' configurations looking for this dependency.
+				def configurations = cachedProject.rootProject.allprojects*.configurations.flatten()
+
+				def containingConf = configurations.find {
 					it.dependencies.any { it.is(dep) }
 				}
+
 				containingConf.dependencies.remove(dep)
 
 				def locked = new DefaultExternalModuleDependency(dep.group, dep.name,

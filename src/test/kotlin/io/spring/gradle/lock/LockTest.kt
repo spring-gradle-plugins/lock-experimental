@@ -172,6 +172,29 @@ class LockTest: TestKitTest() {
 		result.assertDependency("com.google.guava:guava:16.0", "myconfig")
 	}
 
+	@Test
+	fun lockPreservesExcludes() {
+		buildFile.appendText("""
+            dependencies {
+                compile('org.latencyutils:LatencyUtils:latest.release') {
+					exclude group: 'org.hdrhistogram', module: 'HdrHistogram'
+				}   lock '2.0.3'
+            }
+
+			task listExcludes << {
+				configurations.compile.dependencies.collect { dep ->
+					if(dep instanceof ExternalModuleDependency) {
+						ExternalModuleDependency extDep = dep
+						extDep.excludeRules.each { println(it.group + ":" + it.module) }
+					}
+				}
+            }
+        """)
+
+		val result = runTasksSuccessfully("listExcludes")
+		assertTrue(result.output.contains("org.hdrhistogram:HdrHistogram"))
+	}
+
     private fun BuildResult.assertDependency(mvid: String, conf: String) {
 		println(output)
         assertTrue(output.contains("$conf: $mvid"))

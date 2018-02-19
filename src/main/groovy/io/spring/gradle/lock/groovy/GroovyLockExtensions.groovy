@@ -73,6 +73,15 @@ class GroovyLockExtensions {
 				locked.setChanging(dep.changing)
 				locked.setForce(dep.force)
 
+				dep.excludeRules.each { ex ->
+					def excludeMap = [:]
+					if(ex.group)
+						excludeMap.group = ex.group
+					if(ex.module)
+						excludeMap.module = ex.module
+					locked.exclude(excludeMap)
+				}
+
 				containingConf.dependencies.add(locked)
 			}
 

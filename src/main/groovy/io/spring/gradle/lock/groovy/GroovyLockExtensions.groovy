@@ -62,8 +62,17 @@ class GroovyLockExtensions {
 				}
 
 				if(!containingConf) {
-					logger.warn("Unable to lock ${dep.group}:${dep.name}:${dep.version} because no configuration could be found containing it")
-					return this
+					// try it one more time on the non-cached project. seems to be necessary when the static gets held in the daemon
+					configurations = project.allprojects*.configurations.flatten()
+
+					containingConf = configurations.find {
+						it.dependencies.any { it.is(dep) }
+					}
+
+					if(!containingConf) {
+						logger.warn("Unable to lock ${dep.group}:${dep.name}:${dep.version} because no configuration could be found containing it")
+						return this
+					}
 				}
 
 				containingConf.dependencies.remove(dep)

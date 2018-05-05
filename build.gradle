@@ -13,7 +13,7 @@ plugins {
 	id 'java-gradle-plugin'
 	id 'com.gradle.plugin-publish' version '0.9.10'
 	id 'nebula.plugin-plugin' version '6.3.0'
-    id 'nebula.kotlin' version '1.2.21'
+    id 'nebula.kotlin' version '1.2.41'
     id 'groovy'
 }
 
